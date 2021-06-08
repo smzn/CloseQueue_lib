@@ -1,9 +1,11 @@
 import numpy as np
 from numpy.linalg import solve 
+import itertools #重複組合せを求める
+from functools import lru_cache
 
 class CloseQueue_lib:
 
-    def __init__(self, N, K, p, mu):
+    def __init__(self, N, K, p, mu, m):
         self.N = N #網内の拠点数(プログラム内部で指定する場合は1少なくしている)
         self.K = K #網内の客数
         self.p = p
@@ -11,7 +13,10 @@ class CloseQueue_lib:
         self.mu = mu
         self.rho = np.array([])
         self.pi = np.zeros((len(p),len(p)))
-
+        self.m = m
+        self.comb = self.fact(N + K -1) // (self.fact(N + K -1 - (N -1)) * self.fact(N -1))
+        print('comb = {}'.format(self.comb))
+        
     #閉鎖型ネットワークのノード到着率αを求める
     #https://mizunolab.sist.ac.jp/2019/09/bcmp-network1.html
     def getCloseTraffic(self):
@@ -34,6 +39,8 @@ class CloseQueue_lib:
             g = self.calcConvolution(n-1, k,rho) + rho[n] * self.calcConvolution(n, k-1,rho)
         return g
 
+    # Closed Queueで窓口数が複数の場合の対応 : QN&MC P289 式(7.62) 2021/06/03追加したかったけどやめた
+    
     def getGNK(self, rho):
         self.g = self.calcConvolution(self.N-1, self.K, rho) #ノード番号は1小さくしている
         self.gg = self.calcConvolution(self.N-1, self.K-1, rho) #ノード番号は1小さくしている
@@ -47,6 +54,7 @@ class CloseQueue_lib:
         return avail
 
     #http://www.ieice-hbkb.org/files/05/05gun_01hen_05.pdf
+    #畳み込みを利用する場合、周辺分布までしか算出できない
     def getStationary(self, p, rho):
         pi = []
         for i in range(self.K+1):
@@ -90,4 +98,25 @@ class CloseQueue_lib:
             pi_all[i] = pi 
             
         return pi_all
+    
+    def getPi(self, k, rho):#定常分布pi(k1,k2,k3,...)を返す
+        rho_p = 1
+        for i in range(self.N):
+            rho_p *= rho[i]**k[i]
+        pi = rho_p / self.g
+        return pi
             
+    def fact(self, n):
+        if n == 1:
+            return 1
+        return n * self.fact(n-1)
+    
+    def getCombi(self,N,K):
+        #s = combinations_count(N, K)#重複組み合わせ
+        l = [i for i in range(N)]
+        p_list = list(itertools.combinations_with_replacement(l, K))
+        combi = [[0 for i in range(N)] for j in range(len(p_list))]
+        for ind, p in enumerate(p_list):
+            for k in range(K):
+                combi[ind][p[k]] += 1
+        return combi
