@@ -1,7 +1,6 @@
 import numpy as np
 from numpy.linalg import solve 
 import itertools #重複組合せを求める
-from functools import lru_cache
 
 class CloseQueue_lib:
 
@@ -15,7 +14,6 @@ class CloseQueue_lib:
         self.pi = np.zeros((len(p),len(p)))
         self.m = m
         self.comb = self.fact(N + K -1) // (self.fact(N + K -1 - (N -1)) * self.fact(N -1))
-        print('comb = {}'.format(self.comb))
         
     #閉鎖型ネットワークのノード到着率αを求める
     #https://mizunolab.sist.ac.jp/2019/09/bcmp-network1.html
@@ -29,7 +27,7 @@ class CloseQueue_lib:
 
     #畳み込みで求める
     #http://www.ocw.titech.ac.jp/index.php?module=General&action=DownLoad&file=201316812-17-0-1.pdf&type=cal&JWC=201316812
-    def calcConvolution(self, n, k, rho):
+    def calcConvolution(self, n, k, rho): #メモ化利用なし
         #rho = alpha / mu
         if k == 0: #Gj(0) = 1 (j = 1,...,N)
             g = 1
@@ -39,11 +37,35 @@ class CloseQueue_lib:
             g = self.calcConvolution(n-1, k,rho) + rho[n] * self.calcConvolution(n, k-1,rho)
         return g
 
+    def initMemo(self, rho, memo):
+        for i in range(self.N):
+            memo[i][0] = 1
+        for i in range(self.K+1): #(k = 0,1,2,...,K)
+            memo[0][i] = np.power(rho[0], i)
+        return memo
+            
+    #メモ化を利用して計算を早くする(畳み込みのインデックスを再度確認)
+    def calcConvolution_memo(self, n, k, rho, memo):
+        if memo[n][k] >= 0:
+            g = memo[n][k]
+        else : 
+            memo[n][k] = self.calcConvolution_memo(n-1, k,rho,memo) + rho[n] * self.calcConvolution_memo(n, k-1,rho,memo)
+            g = memo[n][k]
+        return g
+    
     # Closed Queueで窓口数が複数の場合の対応 : QN&MC P289 式(7.62) 2021/06/03追加したかったけどやめた
     
-    def getGNK(self, rho):
+    def getGNK(self, rho):#メモ化利用なし
         self.g = self.calcConvolution(self.N-1, self.K, rho) #ノード番号は1小さくしている
         self.gg = self.calcConvolution(self.N-1, self.K-1, rho) #ノード番号は1小さくしている
+        
+    def getGNK_memo(self, rho):
+        #メモ化の準備
+        memo = np.ones((self.N, self.K+1))#メモ化で利用(n = 0,1,...,N-1, k = 0,1,2,...,K)
+        memo *= -1
+        memo = self.initMemo(rho, memo)
+        self.g = self.calcConvolution_memo(self.N-1, self.K, rho, memo) #ノード番号は1小さくしている
+        self.gg = self.calcConvolution_memo(self.N-1, self.K-1, rho, memo) #ノード番号は1小さくしている
         
     def getThroughput(self):
         throughput = self.alpha * self.gg / self.g
@@ -55,7 +77,13 @@ class CloseQueue_lib:
 
     #http://www.ieice-hbkb.org/files/05/05gun_01hen_05.pdf
     #畳み込みを利用する場合、周辺分布までしか算出できない
-    def getStationary(self, p, rho):
+    def getStationary_memo(self, p, rho, memo): #memoを追加
+        pi = []
+        for i in range(self.K+1):
+            pi.append(np.power(rho[self.N-1], i) * self.calcConvolution_memo(self.N-2,self.K-i, rho, memo) / self.calcConvolution_memo(self.N-1, self.K, rho, memo))
+        return pi
+    
+    def getStationary(self, p, rho): #メモ化なし
         pi = []
         for i in range(self.K+1):
             pi.append(np.power(rho[self.N-1], i) * self.calcConvolution(self.N-2,self.K-i, rho) / self.calcConvolution(self.N-1, self.K, rho))
@@ -68,7 +96,7 @@ class CloseQueue_lib:
                 l[i] += j * pi[i][j]
         return l 
 
-    def getStationaryDistribution(self):
+    def getStationaryDistribution(self, memo_flag):#メモ化を追加
         #定常分布を求めたいノードをノードN(最後のノード)に持ってくる
         #推移確率、α、μの順番を変更
         pi_all = np.zeros((self.N, self.K+1)) #全状態確率を入れるリスト
@@ -94,7 +122,16 @@ class CloseQueue_lib:
             mu[i] = self.mu[len(self.p)-1]
 
             rho = alpha / mu
-            pi = self.getStationary(p, rho)
+            
+            if memo_flag == 1:#メモ化実施
+                #メモ化の準備
+                memo = np.ones((self.N, self.K+1))#メモ化で利用(n = 0,1,...,N-1, k = 0,1,2,...,K)
+                memo *= -1
+                memo = self.initMemo(rho, memo)
+                pi = self.getStationary_memo(p, rho, memo) #memoを追加
+            else:
+                pi = self.getStationary(p, rho) #memoなし
+            
             pi_all[i] = pi 
             
         return pi_all
@@ -120,3 +157,12 @@ class CloseQueue_lib:
             for k in range(K):
                 combi[ind][p[k]] += 1
         return combi
+
+    def getMemo(self):
+        print(self.memo)
+        
+    def getG(self):
+        print('G = {}'.format(self.g))
+        
+    def getGG(self):
+        print('GG = {}'.format(self.gg))

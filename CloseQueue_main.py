@@ -5,11 +5,13 @@ import time
 
 #p = np.array([[0, 0.5, 0.5], [0, 0, 1.0], [1.0, 0, 0]]) #閉鎖型の例(ORの基礎 P155)
 #QN&MC(P292 EX 7.5)
-#p = np.array([[0.6, 0.3, 0.1],[0.2, 0.3, 0.5],[0.4, 0.1, 0.5]])
-#N = 3
-#K = 3
-#mu = [0.8, 0.6, 0.4] #各ノードのサービス時間
-#m = [1, 3, 1] #窓口数(今は利用していない)
+'''
+p = np.array([[0.6, 0.3, 0.1],[0.2, 0.3, 0.5],[0.4, 0.1, 0.5]])
+N = 3
+K = 3
+mu = [0.8, 0.6, 0.4] #各ノードのサービス時間
+m = [1, 3, 1] #窓口数(今は利用していない)
+'''
 
 #QN&MC(P317 EX 8.1) 推移確率は与えられていない。到着率が与えられている。窓口数も複数になっている(窓口複数は未実装：また後で)
 
@@ -30,8 +32,13 @@ alpha = qlib.getCloseTraffic() #α1 = 1とする
 print('各ノードへの到着率 : {0}'.format(alpha))
 
 rho = alpha / mu
+
+#メモ化用変数の初期化
+#qlib.initMemo(rho)
+
 #畳み込みの計算
-qlib.getGNK(rho)
+#qlib.getGNK(rho) #メモ化利用なし
+qlib.getGNK_memo(rho) #メモ化利用
 
 #Throughputの計算(ρ*μ)
 throughput = qlib.getThroughput()
@@ -43,7 +50,8 @@ print('Availability : {0}'.format(avail))
 
 #定常分布の計算(周辺分布) 
 #計算に時間がかかる
-pi_marginal = qlib.getStationaryDistribution()
+memo_flag = 1 #1のときメモ化あり
+pi_marginal = qlib.getStationaryDistribution(memo_flag)
 print('Marginal Stationary Distribution')
 print(pi_marginal)
 
@@ -52,7 +60,7 @@ print(pi_marginal)
 combi_k = qlib.getCombi(N, K)
 for i in range(len(combi_k)):
     pi = qlib.getPi(combi_k[i],rho)
-    print('pi({0}) = {1}'.format(combi_k[i], pi))
+    #print('pi({0}) = {1}'.format(combi_k[i], pi))
 
 #平均系内人数
 l = qlib.getLength(pi_marginal)
@@ -60,6 +68,7 @@ print('Mean Length : {0}'.format(l))
 
 elapsed_time = time.time() - start
 print ("calclation_time:{0}".format(elapsed_time) + "[sec]")
+
 
 #MCMC
 '''
