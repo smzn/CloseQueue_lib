@@ -53,7 +53,7 @@ print('Availability : {0}'.format(avail))
 memo_flag = 1 #1のときメモ化あり
 pi_marginal = qlib.getStationaryDistribution(memo_flag)
 print('Marginal Stationary Distribution')
-print(pi_marginal)
+#print(pi_marginal)
 
 #定常分布(個々の定常分布)例 pi({1,1,1})
 #k = [2,0,1]
@@ -65,6 +65,12 @@ for i in range(len(combi_k)):
 #平均系内人数
 l = qlib.getLength(pi_marginal)
 print('Mean Length : {0}'.format(l))
+
+#MVAでの計算
+L, R, lmd = qlib.calcMVA()
+print('L = {}'.format(L))
+print('R = {}'.format(R))
+print('Lambda = {}'.format(lmd))
 
 elapsed_time = time.time() - start
 print ("calclation_time:{0}".format(elapsed_time) + "[sec]")

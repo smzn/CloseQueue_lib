@@ -14,6 +14,9 @@ class CloseQueue_lib:
         self.pi = np.zeros((len(p),len(p)))
         self.m = m
         self.comb = self.fact(N + K -1) // (self.fact(N + K -1 - (N -1)) * self.fact(N -1))
+        self.L = np.zeros(self.N)
+        self.R = np.zeros(self.N)
+        self.lmd = np.zeros(self.N)
         
     #閉鎖型ネットワークのノード到着率αを求める
     #https://mizunolab.sist.ac.jp/2019/09/bcmp-network1.html
@@ -142,6 +145,27 @@ class CloseQueue_lib:
             rho_p *= rho[i]**k[i]
         pi = rho_p / self.g
         return pi
+    
+    def calcMVA(self):
+        k = 0
+        while(k < self.K):
+            k += 1
+            #Step3 Rの更新
+            for i in range(self.N):
+                self.R[i] = (self.L[i] + 1)/self.mu[i]
+            #Step4 Lambdaの更新
+            for i in range(self.N):
+                sum = 0
+                for j in range(self.N):
+                    sum += self.alpha[j]*self.R[j] 
+                if(i == 0):
+                    self.lmd[i] = k/sum
+                else: 
+                    self.lmd[i] = self.alpha[i]*self.lmd[0]
+            #Step5 Lの更新
+            for i in range(self.N):
+                self.L[i] = self.lmd[i]*self.R[i]
+        return self.L, self.R, self.lmd
             
     def fact(self, n):
         if n == 1:
