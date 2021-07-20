@@ -1,12 +1,16 @@
 import numpy as np
+from numpy.linalg import solve
+import pandas as pd
 
 class BCMP_lib:
     
-    def __init__(self, N, R, K, mu, type_list, alpha):
+    def __init__(self, N, R, K, mu, type_list):
         self.N = N #網内の拠点数(プログラム内部で指定する場合は1少なくしている)
         self.R = R #クラス数
         self.K = K #網内の客数 K = [K1, K2]のようなリスト。トータルはsum(K)
-        #self.p = p #推移確率行列 (N×N)
+        alp, self.p = self.getProbArrival() #推移確率の自動生成と到着率を求める
+        self.saveCSVi(self.p, './tpr/tprNR_'+str(N)+'_'+str(R)+'.csv')#推移確率をcsvで保存しておく
+        self.alpha = alp.T #転置して計算形式に合わせる
         self.mu = mu #サービス率 (N×R)
         self.type_list = type_list #Type1(FCFS),Type2プロセッサシェアリング（Processor Sharing: PS）,Type3無限サーバ（Infinite Server: IS）,Type4後着順割込継続型（LCFS-PR)
         self.combi_list = []
@@ -18,7 +22,7 @@ class BCMP_lib:
         self.tp = np.zeros((self.N, self.R)) #スループットを格納
         self.rho = [] #利用率を格納(各拠点ごと)
         #self.m = m #各拠点の窓口数
-        self.alpha = alpha
+        #self.alpha = alpha
         #課題
         #1. 推移確率行列から到着率の計算過程を入れる(推移確率は取り込みとランダム生成(エルゴード性を担保)の両方)
         #2. 窓口数を加味した計算(利用率やFSの部分)
@@ -138,6 +142,92 @@ class BCMP_lib:
         self.rho = self.tp / self.mu
         #return self.rho
         
+    #クラス数分推移確率行列を生成して、それぞれの到着率を返す関数
+    def getProbArrival(self):
+        pr = np.zeros((self.R*self.N, self.R*self.N))
+        alpha = np.zeros((self.R, self.N))
+        for r in range(self.R):
+            class_number = 0
+            while class_number != 1: #エルゴード性を持つか確認
+                p = np.random.rand(self.N, self.N)
+                for i, val in enumerate(np.sum(p, axis=1)): #正規化 axis=1で行和
+                    p[i] /= val
+                for i in range(self.N):#推移確率のマージ
+                    for j in range(self.N):
+                        pr[r*self.N+i,r*self.N+j] = p[i,j]
+                equivalence, class_number = self.getEquivalence(0, 5, p)#0は閾値、5はステップ数
+                if class_number == 1: #クラス数が1(エルゴード性を持つ)
+                    break
+            alpha_r = self.getCloseTraffic(p)
+            for i, val in enumerate(alpha_r): #到着率を配列alphaに格納
+                alpha[r,i] = val
+                #print('r = {0}, i = {1}, val = {2}'.format(r,i,val))
+        return alpha, pr
+    
+    def getCloseTraffic(self, p):
+        e = np.eye(len(p)-1) #次元を1つ小さくする
+        pe = p[1:len(p), 1:len(p)].T - e #行と列を指定して次元を小さくする
+        lmd = p[0, 1:len(p)] #0行1列からの値を右辺に用いる
+        slv = solve(pe, lmd * (-1))
+        alpha = np.insert(slv, 0, 1.0) #α1=1を追加
+        return alpha
+    
+    #同値類を求める関数
+    def getEquivalence(self, th, roop, p):
+        list_number = 0 #空のリストを最初から使用する
+
+        #1. 空のリストを作成して、ノードを追加しておく(作成するのはノード数分)
+        equivalence = [[] for i in range(len(p))] 
+        
+        #2. Comunicationか判定して、Commnicateの場合リストに登録
+        for ix in range(roop):
+            p = np.linalg.matrix_power(p.copy(), ix+1) #累乗
+            for i in range(len(p)):
+                for j in range(i+1, len(p)):
+                    if(p[i][j] > th and p[j][i] > th): #Communicateの場合
+                        #3. Communicateの場合登録するリストを選択
+                        find = 0 #既存リストにあるか
+                        for k in range(len(p)):
+                            if i in equivalence[k]: #既存のk番目リストに発見(iで検索)
+                                find = 1 #既存リストにあった
+                                if j not in equivalence[k]: #jがリストにない場合登録
+                                    equivalence[k].append(j)        
+                                break
+                            if j in equivalence[k]: #既存のk番目リストに発見(jで検索)
+                                find = 1 #既存リストにあった
+                                if i not in equivalence[k]:
+                                    equivalence[k].append(i)        
+                                break
+                        if(find == 0):#既存リストにない
+                            equivalence[list_number].append(i)
+                            if(i != j):
+                                equivalence[list_number].append(j)
+                            list_number += 1
+
+        #4. Communicateにならないノードを登録
+        for i in range(len(p)):
+            find = 0
+            for j in range(len(p)):
+                if i in equivalence[j]:
+                    find = 1
+                    break
+            if find == 0:
+                equivalence[list_number].append(i)
+                list_number += 1
+
+        #5. エルゴード性の確認(class数が1のとき)
+        class_number = 0
+        for i in range(len(p)):
+            if len(equivalence[i]) > 0:
+                class_number += 1
+
+        return equivalence, class_number
+    
+    #データの保存
+    def saveCSVi(self, df, fname):
+        pdf = pd.DataFrame(df) #データフレームをpandasに変換
+        pdf.to_csv(fname, index=True) #index=Falseでインデックスを出力しない
+        
 if __name__ == '__main__':
     
     N = 4
@@ -147,9 +237,10 @@ if __name__ == '__main__':
     K = [K1, K2]
     mu = np.array([[1/1, 1/2],[1/4, 1/5],[1/8, 1/10],[1/12, 1/16]])
     type_list = [2, 4, 4, 3] #Node1:Type2プロセッサシェアリング（Processor Sharing: PS）, Node2:Type4後着順割込継続型（LCFS-PR), Node3:Type4後着順割込継続型（LCFS-PR), Node4:Type3無限サーバ（Infinite Server: IS）, その他Type1(FCFS) 
-    alpha = np.array([[1, 1],[0.4, 0.4],[0.4, 0.3],[0.2, 0.3]])
+    #alpha = np.array([[1, 1],[0.4, 0.4],[0.4, 0.3],[0.2, 0.3]])
     
-    bcmp = BCMP_lib(N, R, K, mu, type_list, alpha)
+    #bcmp = BCMP_lib(N, R, K, mu, type_list, alpha)
+    bcmp = BCMP_lib(N, R, K, mu, type_list) #この条件で推移確率を自動生成して、到着率をコンストラクタで求める
     mp_set, exp, tp, rho = bcmp.getBCMP()
     print('周辺分布')
     print(mp_set)
