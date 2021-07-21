@@ -1,6 +1,7 @@
 import numpy as np
 from numpy.linalg import solve
 import pandas as pd
+import time
 
 class BCMP_lib:
     
@@ -230,18 +231,26 @@ class BCMP_lib:
         
 if __name__ == '__main__':
     
-    N = 4
-    R = 2
-    K1 = 1
-    K2 = 2
-    K = [K1, K2]
-    mu = np.array([[1/1, 1/2],[1/4, 1/5],[1/8, 1/10],[1/12, 1/16]])
-    type_list = [2, 4, 4, 3] #Node1:Type2プロセッサシェアリング（Processor Sharing: PS）, Node2:Type4後着順割込継続型（LCFS-PR), Node3:Type4後着順割込継続型（LCFS-PR), Node4:Type3無限サーバ（Infinite Server: IS）, その他Type1(FCFS) 
+    N = 4 #与える
+    R = 2 #与える
+    K_total = 5 #与える
+    K = [(K_total + i) // R for i in range(R)] #クラス人数を自動的に配分する
+    mu = np.full((N, R), 1) #サービス率を同じ値で生成(サービス率は調整が必要)
+    type_list = np.full(N, 2) #サービスタイプはPSとする
+    #K1 = 1
+    #K2 = 2
+    #K = [K1, K2]
+    #mu = np.array([[1/1, 1/2],[1/4, 1/5],[1/8, 1/10],[1/12, 1/16]])
+    #type_list = [2, 4, 4, 3] #Node1:Type2プロセッサシェアリング（Processor Sharing: PS）, Node2:Type4後着順割込継続型（LCFS-PR), Node3:Type4後着順割込継続型（LCFS-PR), Node4:Type3無限サーバ（Infinite Server: IS）, その他Type1(FCFS) 
     #alpha = np.array([[1, 1],[0.4, 0.4],[0.4, 0.3],[0.2, 0.3]])
     
     #bcmp = BCMP_lib(N, R, K, mu, type_list, alpha)
+    start = time.time()
     bcmp = BCMP_lib(N, R, K, mu, type_list) #この条件で推移確率を自動生成して、到着率をコンストラクタで求める
     mp_set, exp, tp, rho = bcmp.getBCMP()
+    elapsed_time = time.time() - start
+    print ("calclation_time:{0}".format(elapsed_time) + "[sec]")
+    
     print('周辺分布')
     print(mp_set)
     print('平均系内人数')
