@@ -36,6 +36,10 @@ class BCMP_Simulation:
         Lc = np.zeros((self.N, self.R)) #平均系内人数(結果)(クラス別)
         Q = np.zeros(self.N) #平均待ち人数(結果)
         Qc = np.zeros((self.N, self.R)) #平均待ち人数(結果)(クラス別)
+        rmse = [] #100単位時間でのrmseの値を格納
+        rmse_time = [] #rmseを登録した時間
+        regist_time = 50 #rmseの登録時刻
+        regist_span = 50 #50単位で登録
         
         elapse = 0
         initial_node = 0
@@ -66,7 +70,7 @@ class BCMP_Simulation:
         #print('Simulation Start')
         #Step2 シミュレーション開始
         while elapse < self.time:
-            print('経過時間 : {0} / {1}'.format(elapse, self.time))
+            #print('経過時間 : {0} / {1}'.format(elapse, self.time))
             mini_service = 100000#最小のサービス時間
             mini_index = -1 #最小のサービス時間をもつノード
            
@@ -166,6 +170,21 @@ class BCMP_Simulation:
             print('queueclass : {0}'.format(queueclass))
             print('classorder : {0}'.format(classorder))
             '''
+           
+            #Step2.5 RMSEの計算
+            if elapse > regist_time:
+                rmse_sum = 0
+                theoretical_value = theoretical.values
+                lc = total_lengthclass / elapse #今までの時刻での平均系内人数
+                for n in range(self.N):
+                    for r in range(self.R):
+                        rmse_sum += (theoretical_value[n,r] - lc[n,r])**2
+                rmse_sum /= self.N * self.R
+                rmse_value = math.sqrt(rmse_sum)
+                rmse.append(rmse_value)
+                rmse_time.append(regist_time)
+                regist_time += regist_span
+                print('Elapse = {0}, RMSE = {1}'.format(elapse, rmse_value))
             
         L = total_length / self.time
         Lc = total_lengthclass / self.time
@@ -177,10 +196,13 @@ class BCMP_Simulation:
         print('平均待ち人数Q : {0}'.format(Q))
         print('平均待ち人数(クラス別)Qc : {0}'.format(Qc))
        
-        pd.DataFrame(L).to_csv('./csv/L(N:'+str(self.N)+',R:'+str(self.R)+'K:'+str(self.K)+'Time:'+str(self.time)+').csv')
-        pd.DataFrame(Lc).to_csv('./csv/Lc(N:'+str(self.N)+',R:'+str(self.R)+'K:'+str(self.K)+'Time:'+str(self.time)+').csv')
-        pd.DataFrame(Q).to_csv('./csv/Q(N:'+str(self.N)+',R:'+str(self.R)+'K:'+str(self.K)+'Time:'+str(self.time)+').csv')
-        pd.DataFrame(Qc).to_csv('./csv/Qc(N:'+str(self.N)+',R:'+str(self.R)+'K:'+str(self.K)+'Time:'+str(self.time)+').csv')
+        pd.DataFrame(L).to_csv('./csv/L(N:'+str(self.N)+',R:'+str(self.R)+',K:'+str(self.K)+',Time:'+str(self.time)+').csv')
+        pd.DataFrame(Lc).to_csv('./csv/Lc(N:'+str(self.N)+',R:'+str(self.R)+',K:'+str(self.K)+',Time:'+str(self.time)+').csv')
+        pd.DataFrame(Q).to_csv('./csv/Q(N:'+str(self.N)+',R:'+str(self.R)+',K:'+str(self.K)+',Time:'+str(self.time)+').csv')
+        pd.DataFrame(Qc).to_csv('./csv/Qc(N:'+str(self.N)+',R:'+str(self.R)+',K:'+str(self.K)+',Time:'+str(self.time)+').csv')
+        rmse_index = {'time': rmse_time, 'RMSE': rmse}
+        df_rmse = pd.DataFrame(rmse_index)
+        df_rmse.to_csv('./csv/RMSE(N:'+str(self.N)+',R:'+str(self.R)+',K:'+str(self.K)+',Time:'+str(self.time)+').csv')
         
     def getExponential(self, param):
         return - math.log(1 - random.random()) / param 
@@ -192,12 +214,12 @@ if __name__ == '__main__':
     #推移確率行列に合わせる
     N = 33 #33
     R = 2
-    K_total = 10
+    K_total = 100
     K = [(K_total + i) // R for i in range(R)] #クラス人数を自動的に配分する
     mu = np.full(N, 1) #サービス率を同じ値で生成(サービス率は調整が必要)
     type_list = np.full(N, 1) #サービスタイプはFCFS
     p = pd.read_csv('csv/transition33.csv')
-   
-    time = 1000
+    theoretical = pd.read_csv('csv/Theoretical33.csv')
+    time = 10000
     bcmp = BCMP_Simulation(N, R, K, mu, type_list, p, time) 
     bcmp.getSimulation()
