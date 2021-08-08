@@ -12,7 +12,7 @@ class BCMP_Simulation:
         self.mu = mu #サービス率 FCFSはクラス別で変えられない
         self.type_list = type_list #Type1(FCFS),Type2プロセッサシェアリング（Processor Sharing: PS）,Type3無限サーバ（Infinite Server: IS）,Type4後着順割込継続型（LCFS-PR)
         self.p = p
-        print(self.p.shape)
+        #print(self.p.shape)
         self.event = [[] for i in range(self.N)] #各拠点で発生したイベント(arrival, departure)を格納
         self.eventclass = [[] for i in range(self.N)] #各拠点でイベント発生時の客クラス番号
         self.eventqueue = [[] for i in range(N)] #各拠点でイベント発生時のqueueの長さ
@@ -32,6 +32,10 @@ class BCMP_Simulation:
         total_lengthclass = np.zeros((self.N, self.R)) #各拠点の延べ人数(クラス別)
         total_waiting = np.zeros(self.N) #延べ待ち人数(クラスをまとめたもの)
         total_waitingclass = np.zeros((self.N, self.R))#延べ待ち人数(クラス別)
+        L = np.zeros(self.N) #平均系内人数(結果)
+        Lc = np.zeros((self.N, self.R)) #平均系内人数(結果)(クラス別)
+        Q = np.zeros(self.N) #平均待ち人数(結果)
+        Qc = np.zeros((self.N, self.R)) #平均待ち人数(結果)(クラス別)
         
         elapse = 0
         initial_node = 0
@@ -46,7 +50,8 @@ class BCMP_Simulation:
                 queueclass[initial_node][i] += 1 #拠点0にクラス別人数を追加
                 classorder[initial_node].append(i)#拠点0にクラス番号を追加
         service[initial_node] = self.getExponential(self.mu[initial_node]) #先頭客のサービス時間設定
-        
+       
+        '''
         print('Step1 開始時の客の分配 (開始時のノードは拠点番号0)')
         print('event : {0}'.format(self.event))
         print('eventclass : {0}'.format(self.eventclass))
@@ -56,14 +61,16 @@ class BCMP_Simulation:
         print('queueclass : {0}'.format(queueclass))
         print('classorder : {0}'.format(classorder))
         print('service : {0}'.format(service))
+        '''
         
-        print('Simulation Start')
+        #print('Simulation Start')
         #Step2 シミュレーション開始
         while elapse < self.time:
+            print('経過時間 : {0} / {1}'.format(elapse, self.time))
             mini_service = 100000#最小のサービス時間
             mini_index = -1 #最小のサービス時間をもつノード
            
-            print('Step2.1 次に退去が起こる拠点を検索')
+            #print('Step2.1 次に退去が起こる拠点を検索')
             #Step2.1 次に退去が起こる拠点を検索
             for i in range(self.N):#待ち人数がいる中で最小のサービス時間を持つノードを算出
                 if queue[i] > 0:
@@ -71,11 +78,13 @@ class BCMP_Simulation:
                         mini_service = service[i]
                         mini_index = i
             departure_class = classorder[mini_index].pop(0) #退去する客のクラスを取り出す(先頭の客)
-                        
+            
+            '''
             print('現在時刻(elapse) : {0}'.format(elapse))
             print('最小のサービス時間(mini_service) : {0}'.format(mini_service))
             print('最小のサービス時間を持つ拠点番号(mini_index) : {0}'.format(mini_index))
             print('最小のサービス時間を持つ拠点のクラス(departure_class) : {0}'.format(departure_class))
+            '''
             
             #Step2.2 イベント拠点確定後、全ノードの情報更新(サービス時間、延べ人数)
             for i in range(self.N):#ノードiから退去(全拠点で更新)
@@ -93,6 +102,7 @@ class BCMP_Simulation:
                 self.timerate[i, int(queue[i])] += mini_service #人数分布の時間帯を更新
                 for r in range(R):
                     self.timerateclass[i, r, int(queueclass[i,r])] += mini_service #人数分布の時間帯を更新
+            '''
             print('Step2.2 イベント拠点確定後、全ノードの情報更新(サービス時間、延べ人数)')
             print('queue : {0}'.format(queue))
             print('queueclass : {0}'.format(queueclass))
@@ -100,7 +110,7 @@ class BCMP_Simulation:
             #print('total_lengthclass : {0}'.format(total_lengthclass))
             #print('timerate : {0}'.format(self.timerate))
             #print('timerateclass : {0}'.format(self.timerateclass))
-        
+            '''
         
             #Step2.3 退去を反映
             self.event[mini_index].append("departure") #退去を登録
@@ -126,8 +136,10 @@ class BCMP_Simulation:
             for i in range(self.N * departure_class, self.N * (departure_class + 1)):
                 for j in range(self.N * departure_class, self.N * (departure_class + 1)):
                     pr[i - self.N * departure_class, j - self.N * departure_class] = self.p.iloc[i,j]
+            '''
             print(pr)
             print(pr.shape)
+            '''
             
             for i in range(len(pr)):    
                 sum_rand += pr[mini_index][i]
@@ -147,12 +159,29 @@ class BCMP_Simulation:
             queueclass[destination_index][departure_class] += 1 #推移先の待ち行列(クラス別)に登録 
             classorder[destination_index].append(departure_class)
             
+            '''
             print('Step2.4 退去客の行き先決定')
             print('destination_index : {0}'.format(destination_index))
             print('queue : {0}'.format(queue))
             print('queueclass : {0}'.format(queueclass))
             print('classorder : {0}'.format(classorder))
-    
+            '''
+            
+        L = total_length / self.time
+        Lc = total_lengthclass / self.time
+        Q = total_waiting / self.time
+        Qc = total_waitingclass / self.time
+        
+        print('平均系内人数L : {0}'.format(L))
+        print('平均系内人数(クラス別)Lc : {0}'.format(Lc))
+        print('平均待ち人数Q : {0}'.format(Q))
+        print('平均待ち人数(クラス別)Qc : {0}'.format(Qc))
+       
+        pd.DataFrame(L).to_csv('./csv/L(N:'+str(self.N)+',R:'+str(self.R)+'K:'+str(self.K)+'Time:'+str(self.time)+').csv')
+        pd.DataFrame(Lc).to_csv('./csv/Lc(N:'+str(self.N)+',R:'+str(self.R)+'K:'+str(self.K)+'Time:'+str(self.time)+').csv')
+        pd.DataFrame(Q).to_csv('./csv/Q(N:'+str(self.N)+',R:'+str(self.R)+'K:'+str(self.K)+'Time:'+str(self.time)+').csv')
+        pd.DataFrame(Qc).to_csv('./csv/Qc(N:'+str(self.N)+',R:'+str(self.R)+'K:'+str(self.K)+'Time:'+str(self.time)+').csv')
+        
     def getExponential(self, param):
         return - math.log(1 - random.random()) / param 
     
@@ -169,6 +198,6 @@ if __name__ == '__main__':
     type_list = np.full(N, 1) #サービスタイプはFCFS
     p = pd.read_csv('csv/transition33.csv')
    
-    time = 10
+    time = 1000
     bcmp = BCMP_Simulation(N, R, K, mu, type_list, p, time) 
     bcmp.getSimulation()
